@@ -1,0 +1,455 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "emotion-capture",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e56570b7-5200-4f36-b902-f8d8838b7aee",
+      "name": "Emotion Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1460,
+        260
+      ],
+      "webhookId": "emotion-capture-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and process incoming emotion data\nconst data = $input.all()[0].json;\n\n// Set defaults if missing\nconst processedData = {\n  userId: data.userId || 'anonymous_' + Date.now(),\n  emotion: data.emotion?.toLowerCase() || 'neutral',\n  confidence: parseFloat(data.confidence) || 0,\n  productId: data.productId || '',\n  price: parseInt(data.price) || 0,\n  category: data.category || 'Unknown',\n  timestamp: data.timestamp || new Date().toISOString(),\n  sessionId: data.sessionId || 'session_' + Date.now()\n};\n\nconsole.log('Processing emotion data:', processedData);\n\nreturn { json: processedData };"
+      },
+      "id": "95afc822-caa8-4916-8045-96f4252c40fd",
+      "name": "Process Emotion Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1240,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableTokenApi",
+        "operation": "list",
+        "application": {
+          "__rl": true,
+          "value": "appsbT9WMzGslghEd",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbluMw31PzIY9qpf2",
+          "mode": "id"
+        },
+        "additionalOptions": {}
+      },
+      "id": "0a8b5300-61de-49fb-a69e-d71a3fe95802",
+      "name": "Store in Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        -1020,
+        260
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "6ZXewSgyjjiS7PP1",
+          "name": "walmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableTokenApi",
+        "operation": "list",
+        "application": {
+          "__rl": true,
+          "value": "appsbT9WMzGslghEd",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblgQNVO8eldDWAjC",
+          "mode": "id"
+        },
+        "additionalOptions": {}
+      },
+      "id": "21a9c22a-10d8-44df-8749-9495b89e549a",
+      "name": "Get User Emotion History",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        260
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "6ZXewSgyjjiS7PP1",
+          "name": "walmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Count consecutive sad emotions for wellness mode trigger\nconst currentEmotion = $node[\"Process Emotion Data\"].json.emotion;\nconst userId = $node[\"Process Emotion Data\"].json.userId;\nconst recentEmotions = $input.all()[0].json.records || [];\n\n// Count consecutive sad emotions\nlet consecutiveSad = 0;\nfor (let record of recentEmotions) {\n  if (record.fields.Emotion === 'sad') {\n    consecutiveSad++;\n  } else {\n    break; // Stop at first non-sad emotion\n  }\n}\n\n// Add current emotion if it's sad\nif (currentEmotion === 'sad') {\n  consecutiveSad++;\n}\n\n// Determine if wellness mode should be triggered\nconst triggersWellnessMode = consecutiveSad >= 3;\n\nconsole.log(`User ${userId} has ${consecutiveSad} consecutive sad emotions`);\n\nreturn { \n  json: { \n    ...$node[\"Process Emotion Data\"].json,\n    consecutiveSad: consecutiveSad,\n    triggersWellnessMode: triggersWellnessMode,\n    recentEmotionCount: recentEmotions.length\n  }\n};"
+      },
+      "id": "e5960c42-1b06-41ab-ad20-1a2cbe7eb5b7",
+      "name": "Analyze Emotion Pattern",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -580,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "operation": "equal",
+              "value2": 1
+            },
+            {
+              "operation": "and",
+              "output": 1
+            },
+            {
+              "operation": "equal",
+              "value2": null,
+              "output": 2
+            }
+          ]
+        },
+        "fallbackOutput": 3
+      },
+      "id": "77c861e7-8ea6-43fd-9af4-0b4199bf7f39",
+      "name": "Decision Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wellness Mode - Provide mental health support\nconst wellnessQuotes = [\n  \"Take time to breathe. You're doing better than you think. 🌸\",\n  \"Every purchase should bring you joy, not stress. 💝\",\n  \"Your wellbeing matters more than any product. 🧘‍♀️\",\n  \"Sometimes the best buy is to not buy at all. 🌱\",\n  \"Focus on what truly makes you happy. ✨\",\n  \"You are enough, just as you are. 💚\",\n  \"Take a moment to appreciate what you already have. 🙏\"\n];\n\nconst journalApps = [\n  {\n    name: \"Daylio\",\n    url: \"https://daylio.net\",\n    description: \"Simple micro mood diary\"\n  },\n  {\n    name: \"Journey\",\n    url: \"https://journey.cloud\",\n    description: \"Beautiful journaling experience\"\n  },\n  {\n    name: \"Reflectly\",\n    url: \"https://www.reflectly.app\",\n    description: \"AI-powered journal\"\n  }\n];\n\nconst calmingContent = [\n  {\n    type: \"playlist\",\n    name: \"Peaceful Piano\",\n    url: \"https://open.spotify.com/playlist/37i9dQZF1DWZqd5JICZI0u\",\n    platform: \"Spotify\"\n  },\n  {\n    type: \"playlist\",\n    name: \"Nature Sounds\",\n    url: \"https://open.spotify.com/playlist/37i9dQZF1DX3Ogo9pFvBkY\",\n    platform: \"Spotify\"\n  },\n  {\n    type: \"meditation\",\n    name: \"Headspace\",\n    url: \"https://www.headspace.com/meditation/stress\",\n    platform: \"Web\"\n  }\n];\n\nconst motivationalGifs = [\n  \"https://media.giphy.com/media/3o7qDSOvfaCO9b3MlO/giphy.gif\",\n  \"https://media.giphy.com/media/l2JhOVy5W9zqiOmB2/giphy.gif\",\n  \"https://media.giphy.com/media/26FPJGjBiIWGoTNja/giphy.gif\"\n];\n\n// Select random content\nconst randomQuote = wellnessQuotes[Math.floor(Math.random() * wellnessQuotes.length)];\nconst randomJournal = journalApps[Math.floor(Math.random() * journalApps.length)];\nconst randomContent = calmingContent[Math.floor(Math.random() * calmingContent.length)];\nconst randomGif = motivationalGifs[Math.floor(Math.random() * motivationalGifs.length)];\n\nreturn {\n  json: {\n    type: \"wellness\",\n    mode: \"wellness_support\",\n    message: \"We've noticed you might need some emotional support. Here's something to help you feel better:\",\n    consecutiveSadCount: $json.consecutiveSad,\n    wellness: {\n      quote: randomQuote,\n      journalApp: randomJournal,\n      calmingContent: randomContent,\n      motivationalGif: randomGif,\n      suggestion: \"Consider taking a break from shopping and focus on self-care. Your mental health is more important than any purchase.\",\n      supportHotline: {\n        name: \"National Mental Health Helpline\",\n        number: \"1-800-XXX-XXXX\",\n        available: \"24/7\"\n      }\n    },\n    actionSuggestion: \"pause_shopping\"\n  }\n};"
+      },
+      "id": "3a342673-26d1-418a-86cd-475502e743f4",
+      "name": "Wellness Mode Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableTokenApi",
+        "operation": "list",
+        "application": {
+          "__rl": true,
+          "value": "appsbT9WMzGslghEd",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9LC9nr3tX599dw",
+          "mode": "id"
+        },
+        "additionalOptions": {}
+      },
+      "id": "8d432086-4b71-4b85-a316-501c70bc1e90",
+      "name": "Get Cheaper Alternatives",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        -140,
+        260
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "6ZXewSgyjjiS7PP1",
+          "name": "walmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process cheaper alternatives for sad + expensive emotion\nconst alternatives = $input.all()[0].json.records || [];\nconst originalPrice = $node[\"Analyze Emotion Pattern\"].json.price;\nconst category = $node[\"Analyze Emotion Pattern\"].json.category;\n\nif (alternatives.length === 0) {\n  return {\n    json: {\n      type: \"no_alternative\",\n      message: \"We understand this might be outside your comfort zone. Here are some suggestions:\",\n      suggestions: [\n        \"Consider waiting for a sale or discount\",\n        \"Look for similar products in our budget-friendly section\",\n        \"Check if financing options are available\",\n        \"Compare with other brands in the same category\"\n      ],\n      category: category,\n      originalPrice: originalPrice,\n      actionSuggestion: \"wait_for_sale\"\n    }\n  };\n}\n\n// Process and format alternatives\nconst processedAlternatives = alternatives.map(record => ({\n  id: record.id,\n  name: record.fields.Name,\n  price: record.fields.Price,\n  originalPrice: originalPrice,\n  savings: originalPrice - record.fields.Price,\n  savingsPercentage: Math.round(((originalPrice - record.fields.Price) / originalPrice) * 100),\n  rating: record.fields.Rating || 0,\n  image: record.fields.Image?.[0]?.url || '',\n  description: record.fields.Description || '',\n  features: record.fields.Features ? record.fields.Features.split(',') : [],\n  availability: record.fields.Availability || 'In Stock'\n}));\n\n// Get the best alternative (highest rating, most savings)\nconst bestAlternative = processedAlternatives[0];\n\nreturn {\n  json: {\n    type: \"cheaper_alternative\",\n    message: \"We found some great alternatives that might be easier on your budget! 💰\",\n    emotion: \"sad\",\n    context: \"budget_conscious\",\n    bestAlternative: bestAlternative,\n    allAlternatives: processedAlternatives,\n    savingsHighlight: `Save ₹${bestAlternative.savings} (${bestAlternative.savingsPercentage}% off)`,\n    actionSuggestion: \"consider_alternative\",\n    supportMessage: \"Remember, a good purchase should make you feel happy, not stressed about money.\"\n  }\n};"
+      },
+      "id": "f0efefa6-bee0-4c7f-a282-10d59416ab55",
+      "name": "Process Cheaper Alternatives",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableTokenApi",
+        "operation": "list",
+        "application": {
+          "__rl": true,
+          "value": "appsbT9WMzGslghEd",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbltiKx5RSLzCjxLL",
+          "mode": "id"
+        },
+        "additionalOptions": {}
+      },
+      "id": "d2076cfd-53a9-4acd-b75e-5025fa8f66b3",
+      "name": "Get Premium Products",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        -140,
+        460
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "6ZXewSgyjjiS7PP1",
+          "name": "walmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process premium/related products for happy emotion\nconst premiumProducts = $input.all()[0].json.records || [];\nconst currentPrice = $node[\"Analyze Emotion Pattern\"].json.price;\nconst category = $node[\"Analyze Emotion Pattern\"].json.category;\nconst confidence = $node[\"Analyze Emotion Pattern\"].json.confidence;\n\n// First, log this as a successful recommendation\nconst successLog = {\n  userId: $node[\"Analyze Emotion Pattern\"].json.userId,\n  productId: $node[\"Analyze Emotion Pattern\"].json.productId,\n  emotion: \"happy\",\n  confidence: confidence,\n  timestamp: new Date().toISOString(),\n  outcome: \"positive_engagement\"\n};\n\nif (premiumProducts.length === 0) {\n  return {\n    json: {\n      type: \"related_products\",\n      message: \"Great choice! We're glad you're happy with this selection! 😊\",\n      emotion: \"happy\",\n      context: \"positive_reinforcement\",\n      successLog: successLog,\n      suggestion: \"You have excellent taste! Feel free to explore more in this category.\",\n      actionSuggestion: \"explore_more\"\n    }\n  };\n}\n\n// Process premium products\nconst processedProducts = premiumProducts.slice(0, 3).map(record => ({\n  id: record.id,\n  name: record.fields.Name,\n  price: record.fields.Price,\n  priceComparison: record.fields.Price > currentPrice ? 'premium' : 'similar',\n  rating: record.fields.Rating || 0,\n  image: record.fields.Image?.[0]?.url || '',\n  description: record.fields.Description || '',\n  features: record.fields.Features ? record.fields.Features.split(',') : [],\n  premiumFeatures: record.fields.PremiumFeatures ? record.fields.PremiumFeatures.split(',') : [],\n  availability: record.fields.Availability || 'In Stock',\n  popularityScore: record.fields.PopularityScore || 0\n}));\n\n// Categorize recommendations\nconst premiumItems = processedProducts.filter(p => p.priceComparison === 'premium');\nconst similarItems = processedProducts.filter(p => p.priceComparison === 'similar');\n\nreturn {\n  json: {\n    type: \"premium_recommendation\",\n    message: \"Since you're happy with this choice, you might also love these premium options! ✨\",\n    emotion: \"happy\",\n    context: \"upsell_opportunity\",\n    confidence: confidence,\n    successLog: successLog,\n    recommendations: {\n      premium: premiumItems,\n      similar: similarItems,\n      all: processedProducts\n    },\n    personalizedMessage: confidence > 0.8 ? \n      \"Your enthusiasm is contagious! Here are some premium picks just for you.\" :\n      \"We think you'll love these additional options in the same category.\",\n    actionSuggestion: \"explore_premium\"\n  }\n};"
+      },
+      "id": "6e21a8ac-565d-4919-b5a2-0bfc507f0728",
+      "name": "Process Premium Products",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Default response for neutral or other emotions\nconst emotion = $node[\"Analyze Emotion Pattern\"].json.emotion;\nconst confidence = $node[\"Analyze Emotion Pattern\"].json.confidence;\nconst category = $node[\"Analyze Emotion Pattern\"].json.category;\n\n// Emotion-specific responses\nconst emotionResponses = {\n  neutral: {\n    message: \"Thanks for your interest! Here's what we recommend:\",\n    suggestion: \"Take your time to consider your options. We're here to help!\"\n  },\n  angry: {\n    message: \"We understand you might have concerns. Let us help you find the right solution.\",\n    suggestion: \"Consider reading reviews or contacting our support team for more information.\"\n  },\n  fear: {\n    message: \"We want you to feel confident in your decision.\",\n    suggestion: \"Check our return policy and customer reviews for peace of mind.\"\n  },\n  surprise: {\n    message: \"Surprised by this product? Let's help you understand it better!\",\n    suggestion: \"Explore similar items or read detailed specifications.\"\n  },\n  disgust: {\n    message: \"This might not be the right fit. Let's find something better!\",\n    suggestion: \"Browse alternative categories or filter by your preferences.\"\n  }\n};\n\nconst response = emotionResponses[emotion] || emotionResponses.neutral;\n\nreturn {\n  json: {\n    type: \"standard_response\",\n    emotion: emotion,\n    confidence: confidence,\n    message: response.message,\n    suggestion: response.suggestion,\n    category: category,\n    supportOptions: {\n      livechat: \"Available 24/7\",\n      email: \"support@yourstore.com\",\n      phone: \"1-800-XXX-XXXX\",\n      faq: \"https://yourstore.com/faq\"\n    },\n    actionSuggestion: \"browse_alternatives\",\n    additionalHelp: \"Need assistance? Our customer service team is ready to help you find the perfect product.\"\n  }\n};"
+      },
+      "id": "d07e8cc1-eb06-4fbc-b039-4302d2d9f624",
+      "name": "Default Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "2c78b872-c4bf-4eff-ad95-8d6fc0123308",
+      "name": "Merge All Responses",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        360,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format final response for the Flask API\nconst response = $input.all()[0].json;\nconst originalData = $node[\"Analyze Emotion Pattern\"].json;\n\n// Create standardized response format\nconst finalResponse = {\n  success: true,\n  userId: originalData.userId,\n  emotion: originalData.emotion,\n  confidence: originalData.confidence,\n  timestamp: new Date().toISOString(),\n  processingTime: Date.now() - new Date(originalData.timestamp).getTime(),\n  recommendation: response,\n  metadata: {\n    consecutiveSadCount: originalData.consecutiveSad || 0,\n    wellnessModeTriggered: originalData.triggersWellnessMode || false,\n    category: originalData.category,\n    originalPrice: originalData.price,\n    sessionId: originalData.sessionId\n  },\n  analytics: {\n    emotionPattern: originalData.recentEmotionCount > 0 ? 'returning_user' : 'new_user',\n    responseType: response.type,\n    actionSuggestion: response.actionSuggestion || 'none'\n  }\n};\n\n// Add wellness alert if needed\nif (originalData.triggersWellnessMode) {\n  finalResponse.wellnessAlert = {\n    triggered: true,\n    message: \"Wellness mode activated due to multiple sad emotions\",\n    consecutiveCount: originalData.consecutiveSad\n  };\n}\n\nconsole.log('Final response prepared:', JSON.stringify(finalResponse, null, 2));\n\nreturn { json: finalResponse };"
+      },
+      "id": "307f0d1c-89c3-4a34-9ce5-7b14eb46edbc",
+      "name": "Format Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "0bfbd13c-8465-40c4-b4b1-d683a76c6506",
+      "name": "Send Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        880,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Emotion Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Emotion Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Emotion Data": {
+      "main": [
+        [
+          {
+            "node": "Store in Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in Airtable": {
+      "main": [
+        [
+          {
+            "node": "Get User Emotion History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Emotion History": {
+      "main": [
+        [
+          {
+            "node": "Analyze Emotion Pattern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Emotion Pattern": {
+      "main": [
+        [
+          {
+            "node": "Decision Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Switch": {
+      "main": [
+        [
+          {
+            "node": "Wellness Mode Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Cheaper Alternatives",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Premium Products",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Default Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wellness Mode Response": {
+      "main": [
+        [
+          {
+            "node": "Merge All Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Cheaper Alternatives": {
+      "main": [
+        [
+          {
+            "node": "Process Cheaper Alternatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Cheaper Alternatives": {
+      "main": [
+        [
+          {
+            "node": "Merge All Responses",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Premium Products": {
+      "main": [
+        [
+          {
+            "node": "Process Premium Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Responses": {
+      "main": [
+        [
+          {
+            "node": "Format Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final Response": {
+      "main": [
+        [
+          {
+            "node": "Send Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "327c26a4bee00f8dedf7491303158178fb52ee31f4ee6e46c2ed9229c1b014c7"
+  }
+}
